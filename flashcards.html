@@ -144,7 +144,7 @@
       The user swipes right to mark correct and left to mark incorrect.
       Wrong answers are queued for retesting until answered correctly.
       The deck is randomly partitioned into four batches of exactly
-      20 items, with 40 prompts per batch. State is persisted in
+      6 items. State is persisted in
       localStorage so a session can be resumed later.
     */
 
@@ -220,7 +220,7 @@
     }
 
     function buildBatches(items) {
-      const itemBatches = makeBatches(items, 20);
+      const itemBatches = makeBatches(items, 6);
       const batches = [];
 
       itemBatches.forEach((group, gi) => {
@@ -263,7 +263,7 @@
     } catch(e) {}
 
     if (!state) {
-      const shuffledItems = shuffle(baseItems).slice(0, 80);
+      const shuffledItems = shuffle(baseItems);
       const batches = buildBatches(shuffledItems);
 
       state = {
