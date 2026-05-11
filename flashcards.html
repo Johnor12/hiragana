@@ -1,0 +1,514 @@
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Japanese Hiragana Flashcards</title>
+  <style>
+    /*
+      Basic styling tuned for small touch-screens. The card takes up
+      the entire viewport and centers its contents. The user can
+      swipe left (incorrect) or right (correct) anywhere on the card.
+    */
+    html,body {
+      margin: 0;
+      padding: 0;
+      font-family: sans-serif;
+      height: 100%;
+      width: 100%;
+      overflow: hidden;
+      background: #fafafa;
+    }
+
+    #flashcard {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: calc(100% - 40px);
+      width: 100%;
+      font-size: 4rem;
+      user-select: none;
+      -webkit-user-select: none;
+      text-align: center;
+      padding: 20px;
+      box-sizing: border-box;
+      background:
+        linear-gradient(90deg, rgba(220, 38, 38, 0.09), rgba(220, 38, 38, 0) 22%),
+        linear-gradient(270deg, rgba(22, 163, 74, 0.09), rgba(22, 163, 74, 0) 22%);
+    }
+
+
+    #progress {
+      height: 40px;
+      line-height: 40px;
+      text-align: center;
+      font-size: 14px;
+      color: #666;
+    }
+
+    .audio-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+    }
+
+    .speaker {
+      font-size: 6rem;
+      cursor: pointer;
+      line-height: 1;
+    }
+
+    .speaker:active {
+      transform: scale(0.96);
+    }
+
+    .kana-card,
+    .answer-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+
+    .kana-main,
+    .answer-kana {
+      font-size: 6rem;
+      line-height: 1;
+    }
+
+    .kana-romaji,
+    .answer-romaji {
+      font-size: 1.5rem;
+      color: #777;
+      margin-top: 16px;
+    }
+
+    button {
+      font-size: 1.5rem;
+      padding: 10px 18px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      background: white;
+      cursor: pointer;
+    }
+
+    button:active {
+      background: #eee;
+    }
+
+
+    #resetBtn {
+      position: fixed;
+      top: 8px;
+      right: 8px;
+      z-index: 10;
+      font-size: 0.9rem;
+      padding: 6px 10px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      background: white;
+      color: #555;
+      cursor: pointer;
+    }
+
+    #resetBtn:active {
+      background: #eee;
+    }
+
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <button id="resetBtn" type="button">Reset</button>
+  <div id="flashcard"></div>
+  <div id="progress"></div>
+
+  <script>
+    /*
+      This flashcard system covers all basic hiragana, their dakuten
+      (voiced) and handakuten (p-series) variants, the palatalised
+      combinations with small ゃ, ゅ, ょ (e.g. きゃ – kya), as well as
+      individual small characters.
+
+      Each item produces two prompts:
+      - kana -> sound: displays the kana; tap to hear the sound.
+      - sound -> kana: plays audio; tap card to reveal kana.
+
+      The user swipes right to mark correct and left to mark incorrect.
+      Wrong answers are queued for retesting until answered correctly.
+      The deck is randomly partitioned into four batches of exactly
+      20 items, with 40 prompts per batch. State is persisted in
+      localStorage so a session can be resumed later.
+    */
+
+    function audioUrl(romaji) {
+      return `https://www.learn-japanese-adventure.com/media-files/kanasound-${romaji}.mp3`;
+    }
+
+    const baseItems = [
+      {kana:'あ', romaji:'a'}, {kana:'い', romaji:'i'}, {kana:'う', romaji:'u'}, {kana:'え', romaji:'e'}, {kana:'お', romaji:'o'},
+
+      {kana:'か', romaji:'ka'}, {kana:'き', romaji:'ki'}, {kana:'く', romaji:'ku'}, {kana:'け', romaji:'ke'}, {kana:'こ', romaji:'ko'},
+
+      {kana:'さ', romaji:'sa'}, {kana:'し', romaji:'shi'}, {kana:'す', romaji:'su'}, {kana:'せ', romaji:'se'}, {kana:'そ', romaji:'so'},
+
+      {kana:'た', romaji:'ta'}, {kana:'ち', romaji:'chi'}, {kana:'つ', romaji:'tsu'}, {kana:'て', romaji:'te'}, {kana:'と', romaji:'to'},
+
+      {kana:'な', romaji:'na'}, {kana:'に', romaji:'ni'}, {kana:'ぬ', romaji:'nu'}, {kana:'ね', romaji:'ne'}, {kana:'の', romaji:'no'},
+
+      {kana:'は', romaji:'ha'}, {kana:'ひ', romaji:'hi'}, {kana:'ふ', romaji:'fu'}, {kana:'へ', romaji:'he'}, {kana:'ほ', romaji:'ho'},
+
+      {kana:'ま', romaji:'ma'}, {kana:'み', romaji:'mi'}, {kana:'む', romaji:'mu'}, {kana:'め', romaji:'me'}, {kana:'も', romaji:'mo'},
+
+      {kana:'や', romaji:'ya'}, {kana:'ゆ', romaji:'yu'}, {kana:'よ', romaji:'yo'},
+
+      {kana:'ら', romaji:'ra'}, {kana:'り', romaji:'ri'}, {kana:'る', romaji:'ru'}, {kana:'れ', romaji:'re'}, {kana:'ろ', romaji:'ro'},
+
+      {kana:'わ', romaji:'wa'}, {kana:'を', romaji:'wo'}, {kana:'ん', romaji:'n'},
+
+      {kana:'が', romaji:'ga'}, {kana:'ぎ', romaji:'gi'}, {kana:'ぐ', romaji:'gu'}, {kana:'げ', romaji:'ge'}, {kana:'ご', romaji:'go'},
+
+      {kana:'ざ', romaji:'za'}, {kana:'じ', romaji:'ji'}, {kana:'ず', romaji:'zu'}, {kana:'ぜ', romaji:'ze'}, {kana:'ぞ', romaji:'zo'},
+
+      {kana:'だ', romaji:'da'}, {kana:'ぢ', romaji:'ji'}, {kana:'づ', romaji:'zu'}, {kana:'で', romaji:'de'}, {kana:'ど', romaji:'do'},
+
+      {kana:'ば', romaji:'ba'}, {kana:'び', romaji:'bi'}, {kana:'ぶ', romaji:'bu'}, {kana:'べ', romaji:'be'}, {kana:'ぼ', romaji:'bo'},
+
+      {kana:'ぱ', romaji:'pa'}, {kana:'ぴ', romaji:'pi'}, {kana:'ぷ', romaji:'pu'}, {kana:'ぺ', romaji:'pe'}, {kana:'ぽ', romaji:'po'},
+
+      {kana:'ぁ', romaji:'la', audio:'a'}, {kana:'ぃ', romaji:'li', audio:'i'}, {kana:'ぅ', romaji:'lu', audio:'u'}, {kana:'ぇ', romaji:'le', audio:'e'}, {kana:'ぉ', romaji:'lo', audio:'o'},
+
+      {kana:'ゃ', romaji:'lya', audio:'ya'}, {kana:'ゅ', romaji:'lyu', audio:'yu'}, {kana:'ょ', romaji:'lyo', audio:'yo'},
+
+      {kana:'っ', romaji:'ltu', audio:'tsu'},
+
+      {kana:'ゎ', romaji:'lwa', audio:'wa'},
+
+      {kana:'きゃ', romaji:'kya'}, {kana:'きゅ', romaji:'kyu'}, {kana:'きょ', romaji:'kyo'},
+      {kana:'ぎゃ', romaji:'gya'}, {kana:'ぎゅ', romaji:'gyu'}, {kana:'ぎょ', romaji:'gyo'},
+      {kana:'しゃ', romaji:'sha'}, {kana:'しゅ', romaji:'shu'}, {kana:'しょ', romaji:'sho'},
+      {kana:'じゃ', romaji:'ja'}, {kana:'じゅ', romaji:'ju'}, {kana:'じょ', romaji:'jo'},
+      {kana:'ちゃ', romaji:'cha'}, {kana:'ちゅ', romaji:'chu'}, {kana:'ちょ', romaji:'cho'},
+      {kana:'にゃ', romaji:'nya'}, {kana:'にゅ', romaji:'nyu'}, {kana:'にょ', romaji:'nyo'},
+      {kana:'ひゃ', romaji:'hya'}, {kana:'ひゅ', romaji:'hyu'}, {kana:'ひょ', romaji:'hyo'},
+      {kana:'びゃ', romaji:'bya'}, {kana:'びゅ', romaji:'byu'}, {kana:'びょ', romaji:'byo'},
+      {kana:'ぴゃ', romaji:'pya'}, {kana:'ぴゅ', romaji:'pyu'}, {kana:'ぴょ', romaji:'pyo'},
+      {kana:'みゃ', romaji:'mya'}, {kana:'みゅ', romaji:'myu'}, {kana:'みょ', romaji:'myo'},
+      {kana:'りゃ', romaji:'rya'}, {kana:'りゅ', romaji:'ryu'}, {kana:'りょ', romaji:'ryo'}
+    ];
+
+    function shuffle(arr) {
+      const a = arr.slice();
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    }
+
+    function makeBatches(arr, batchSize) {
+      const batches = [];
+      for (let i = 0; i < arr.length; i += batchSize) {
+        batches.push(arr.slice(i, i + batchSize));
+      }
+      return batches;
+    }
+
+    function buildBatches(items) {
+      const itemBatches = makeBatches(items, 20);
+      const batches = [];
+
+      itemBatches.forEach((group, gi) => {
+        const groupPrompts = [];
+
+        group.forEach((item, idx) => {
+          const audioKey = item.audio || item.romaji;
+          const audioSrc = audioUrl(audioKey);
+
+          groupPrompts.push({
+            id: `${gi}-${idx}-kana`,
+            type: 'kana',
+            kana: item.kana,
+            romaji: item.romaji,
+            audioKey: audioKey,
+            audio: audioSrc
+          });
+
+          groupPrompts.push({
+            id: `${gi}-${idx}-audio`,
+            type: 'audio',
+            kana: item.kana,
+            romaji: item.romaji,
+            audioKey: audioKey,
+            audio: audioSrc
+          });
+        });
+
+        batches.push(groupPrompts);
+      });
+
+      return batches;
+    }
+
+    const stateKey = 'hiraganaFlashcardState';
+    let state = null;
+
+    try {
+      state = JSON.parse(localStorage.getItem(stateKey)) || null;
+    } catch(e) {}
+
+    if (!state) {
+      const shuffledItems = shuffle(baseItems).slice(0, 80);
+      const batches = buildBatches(shuffledItems);
+
+      state = {
+        batches: batches,
+        batchIndex: 0,
+        queue: shuffle(batches[0].slice()),
+        wrong: [],
+        batchWrong: 0,
+        completed: []
+      };
+
+      localStorage.setItem(stateKey, JSON.stringify(state));
+    }
+
+    const flashcardEl = document.getElementById('flashcard');
+    const progressEl = document.getElementById('progress');
+    const resetBtn = document.getElementById('resetBtn');
+
+    if (typeof state.batchWrong !== 'number') {
+      state.batchWrong = 0;
+    }
+
+    let audioObj = null;
+    let touchStartX = null;
+    let mouseStartX = null;
+    let suppressClick = false;
+
+    function saveState() {
+      localStorage.setItem(stateKey, JSON.stringify(state));
+    }
+
+    function playAudio(src) {
+      if (audioObj) {
+        audioObj.pause();
+        audioObj = null;
+      }
+
+      audioObj = new Audio(src);
+      audioObj.play().catch(() => {});
+    }
+
+    function rebuildDeckFromCurrentItems() {
+      const allItems = [];
+
+      state.batches.flat().forEach(prompt => {
+        const exists = allItems.some(item =>
+          item.kana === prompt.kana && item.romaji === prompt.romaji
+        );
+
+        if (!exists) {
+          allItems.push({
+            kana: prompt.kana,
+            romaji: prompt.romaji,
+            audio: prompt.audioKey || prompt.romaji
+          });
+        }
+      });
+
+      return buildBatches(shuffle(allItems));
+    }
+
+    function advanceIfNeeded() {
+      while (state.queue.length === 0) {
+        if (state.wrong.length > 0) {
+          state.queue = shuffle(state.wrong.slice());
+          state.wrong = [];
+          break;
+        }
+
+        state.completed.push(state.batchIndex);
+
+        if (state.completed.length >= state.batches.length) {
+          state.completed = [];
+          state.batches = rebuildDeckFromCurrentItems();
+          state.batchIndex = 0;
+        } else {
+          state.batchIndex += 1;
+        }
+
+        state.batchWrong = 0;
+        state.queue = shuffle(state.batches[state.batchIndex].slice());
+      }
+
+      saveState();
+    }
+
+    function render() {
+      advanceIfNeeded();
+
+      const prompt = state.queue[0];
+
+      if (audioObj) {
+        audioObj.pause();
+        audioObj = null;
+      }
+
+      flashcardEl.innerHTML = '';
+
+      if (prompt.type === 'kana') {
+        const div = document.createElement('div');
+        div.className = 'kana-card';
+        div.innerHTML = `<div class="kana-main">${prompt.kana}</div>`;
+        flashcardEl.appendChild(div);
+      } else {
+        const div = document.createElement('div');
+        div.className = 'audio-card';
+        div.innerHTML = `
+          <div class="speaker replay-audio" role="button" tabindex="0" aria-label="Replay audio">🔊</div>
+        `;
+        flashcardEl.appendChild(div);
+        playAudio(prompt.audio);
+      }
+
+      progressEl.textContent =
+        `Batch ${state.batchIndex + 1}/4 — Remaining: ${state.queue.length} — Incorrect this batch: ${state.batchWrong}`;
+
+      saveState();
+    }
+
+    function revealAnswer() {
+      const prompt = state.queue[0];
+      if (!prompt) return;
+
+      flashcardEl.innerHTML = `
+        <div class="answer-card">
+          <div class="answer-kana">${prompt.kana}</div>
+          <div class="answer-romaji">${prompt.romaji}</div>
+        </div>
+      `;
+
+      playAudio(prompt.audio);
+    }
+
+    function handleAnswer(correct) {
+      const prompt = state.queue.shift();
+      if (!prompt) return;
+
+      if (!correct) {
+        state.wrong.push(prompt);
+        state.batchWrong += 1;
+      }
+
+      render();
+    }
+
+    flashcardEl.addEventListener('touchstart', function(e) {
+      touchStartX = e.changedTouches[0].screenX;
+    });
+
+    flashcardEl.addEventListener('touchend', function(e) {
+      if (touchStartX === null) return;
+
+      const dx = e.changedTouches[0].screenX - touchStartX;
+      const threshold = 30;
+
+      if (dx > threshold) {
+        suppressClick = true;
+        handleAnswer(true);
+      } else if (dx < -threshold) {
+        suppressClick = true;
+        handleAnswer(false);
+      } else {
+        const prompt = state.queue[0];
+        if (prompt) {
+          if (e.target.closest('.replay-audio')) {
+            suppressClick = true;
+            playAudio(prompt.audio);
+          } else if (flashcardEl.querySelector('.answer-card')) {
+            playAudio(prompt.audio);
+          } else {
+            revealAnswer();
+          }
+        }
+      }
+
+      touchStartX = null;
+    });
+
+    flashcardEl.addEventListener('mousedown', function(e) {
+      mouseStartX = e.screenX;
+    });
+
+    document.addEventListener('mouseup', function(e) {
+      if (mouseStartX === null) return;
+
+      const dx = e.screenX - mouseStartX;
+      const threshold = 30;
+
+      if (dx > threshold) {
+        suppressClick = true;
+        handleAnswer(true);
+      } else if (dx < -threshold) {
+        suppressClick = true;
+        handleAnswer(false);
+      }
+
+      mouseStartX = null;
+    });
+
+    flashcardEl.addEventListener('click', function(event) {
+      if (suppressClick) {
+        suppressClick = false;
+        return;
+      }
+
+      const prompt = state.queue[0];
+      if (!prompt) return;
+
+      if (event.target.closest('.replay-audio')) {
+        playAudio(prompt.audio);
+      } else if (flashcardEl.querySelector('.answer-card')) {
+        playAudio(prompt.audio);
+      } else {
+        revealAnswer();
+      }
+    });
+
+
+    flashcardEl.addEventListener('keydown', function(event) {
+      if (!event.target.closest('.replay-audio')) return;
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+
+      event.preventDefault();
+
+      const prompt = state.queue[0];
+      if (prompt) {
+        playAudio(prompt.audio);
+      }
+    });
+
+
+    resetBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+
+      const confirmed = window.confirm('Reset all flashcard progress?');
+      if (!confirmed) return;
+
+      localStorage.removeItem(stateKey);
+      location.reload();
+    });
+
+
+    render();
+  </script>
+</body>
+</html>
