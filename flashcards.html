@@ -270,8 +270,7 @@
         batches: batches,
         batchIndex: 0,
         queue: shuffle(batches[0].slice()),
-        wrong: [],
-        currentBatchOriginalLength: batches[0].length
+        wrong: []
       };
 
       localStorage.setItem(stateKey, JSON.stringify(state));
@@ -313,7 +312,6 @@
           state.batchIndex = 0;
         } else {
           state.batchIndex += 1;
-          state.currentBatchOriginalLength = state.batches[batchIndex].length;
         }
 
         state.queue = shuffle(state.batches[state.batchIndex].slice());
@@ -350,7 +348,7 @@
       }
 
       progressEl.textContent =
-        `Batch ${state.batchIndex + 1}/${state.batches.length} — Correct: ${state.currentBatchOriginalLength - state.wrong.length}/${state.currentBatchOriginalLength} — Remaining: ${state.queue.length}`;
+        `Batch ${state.batchIndex + 1}/${state.batches.length} — Remaining: ${state.queue.length}`;
 
       saveState();
     }
