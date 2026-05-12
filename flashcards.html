@@ -271,8 +271,7 @@
         batchIndex: 0,
         queue: shuffle(batches[0].slice()),
         wrong: [],
-        batchWrong: 0,
-        completed: []
+        currentBatchOriginalLength: batches[0].length
       };
 
       localStorage.setItem(stateKey, JSON.stringify(state));
@@ -281,10 +280,6 @@
     const flashcardEl = document.getElementById('flashcard');
     const progressEl = document.getElementById('progress');
     const resetBtn = document.getElementById('resetBtn');
-
-    if (typeof state.batchWrong !== 'number') {
-      state.batchWrong = 0;
-    }
 
     let audioObj = null;
     let touchStartX = null;
@@ -305,26 +300,6 @@
       audioObj.play().catch(() => {});
     }
 
-    function rebuildDeckFromCurrentItems() {
-      const allItems = [];
-
-      state.batches.flat().forEach(prompt => {
-        const exists = allItems.some(item =>
-          item.kana === prompt.kana && item.romaji === prompt.romaji
-        );
-
-        if (!exists) {
-          allItems.push({
-            kana: prompt.kana,
-            romaji: prompt.romaji,
-            audio: prompt.audioKey || prompt.romaji
-          });
-        }
-      });
-
-      return buildBatches(shuffle(allItems));
-    }
-
     function advanceIfNeeded() {
       while (state.queue.length === 0) {
         if (state.wrong.length > 0) {
@@ -333,17 +308,14 @@
           break;
         }
 
-        state.completed.push(state.batchIndex);
-
-        if (state.completed.length >= state.batches.length) {
-          state.completed = [];
-          state.batches = rebuildDeckFromCurrentItems();
+        if (state.batchIndex + 1 == state.batches.length) {
+          state.batches = buildBatches(shuffle(baseItems));
           state.batchIndex = 0;
         } else {
           state.batchIndex += 1;
+          state.currentBatchOriginalLength = state.batches[batchIndex].length;
         }
 
-        state.batchWrong = 0;
         state.queue = shuffle(state.batches[state.batchIndex].slice());
       }
 
@@ -378,7 +350,7 @@
       }
 
       progressEl.textContent =
-        `Batch ${state.batchIndex + 1}/4 — Remaining: ${state.queue.length} — Incorrect this batch: ${state.batchWrong}`;
+        `Batch ${state.batchIndex + 1}/${state.batches.length} — Correct: ${state.currentBatchOriginalLength - state.wrong.length}/${state.currentBatchOriginalLength} — Remaining: ${state.queue.length}`;
 
       saveState();
     }
@@ -403,7 +375,6 @@
 
       if (!correct) {
         state.wrong.push(prompt);
-        state.batchWrong += 1;
       }
 
       render();
